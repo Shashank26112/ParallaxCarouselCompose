@@ -1,15 +1,18 @@
+@file:Suppress("UNUSED_VARIABLE", "UseExpressionBody")
+
 package tech.apter.parallaxcarouselcompose.ui
 
+import android.annotation.SuppressLint
+import android.graphics.BitmapFactory
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -19,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.imageResource
@@ -26,20 +30,49 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.palette.graphics.Palette
 import tech.apter.parallaxcarouselcompose.R
 import kotlin.math.roundToInt
 
-// Padding values
-private val cardPadding = 5.dp
-private val imagePadding = 1.dp
+// Reduced padding values
+private val cardPadding = 0.9.dp
+private val imagePadding = 0.8.dp
 
 // Shadow and shape values for the card
-private val shadowElevation = 5.dp
-private val borderRadius = 5.dp
+private val shadowElevation = 0.0.dp
+private val borderRadius = 0.dp
 private val shape = RectangleShape
 
 // Offset for the parallax effect
-private val xOffset = cardPadding.value * 2
+private val xOffset = cardPadding.value
+
+private fun ImageBitmap.calculateDrawSize(density: Float, screenWidth: Dp, pagerHeight: Dp): IntSize {
+    val originalImageWidth = width / density
+    val originalImageHeight = height / density
+
+    val frameAspectRatio = screenWidth / pagerHeight
+    val imageAspectRatio = originalImageWidth / originalImageHeight
+
+    val drawWidth = if (frameAspectRatio > imageAspectRatio) {
+        screenWidth.value
+    } else {
+        pagerHeight.value * imageAspectRatio
+    }
+
+    val drawHeight = if (frameAspectRatio > imageAspectRatio) {
+        screenWidth.value / imageAspectRatio
+    } else {
+        pagerHeight.value
+    }
+
+    return IntSize(
+        width = drawWidth.toIntPx(density),
+        height = drawHeight.toIntPx(density)
+    )
+}
+
+// Extension function to convert Float to Int in pixels
+private fun Float.toIntPx(density: Float) = (this * density).roundToInt()
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -73,18 +106,17 @@ fun ParallaxCarousel() {
         state = pagerState,
         modifier = Modifier
             .fillMaxWidth()
-            .height(pagerHeight),
+            .height(pagerHeight)
+            .padding(0.dp), // Ensure there's no padding on the pager itself
+        contentPadding = PaddingValues(horizontal = 16.dp), // Adjust this value for left and right padding
+        pageSpacing = 8.dp // Adjust this value for spacing between pages
     ) { page ->
-        // Calculate the parallax offset for the current page
-        val parallaxOffset = pagerState.getOffsetFractionForPage(page) * screenWidth.value
-
-        // Call ParallaxCarouselItem with image resource and parameters
         ParallaxCarouselItem(
-            images[page],
-            parallaxOffset,
-            pagerHeight,
-            screenWidth,
-            density
+            imageResId = images[page],
+            parallaxOffset = 0f, // Calculate this value based on scroll position for parallax effect
+            pagerHeight = pagerHeight,
+            screenWidth = screenWidth,
+            density = density
         )
     }
 }
@@ -103,21 +135,29 @@ fun ParallaxCarouselItem(
     // Calculate the draw size for the image
     val drawSize = imageBitmap.calculateDrawSize(density, screenWidth, pagerHeight)
 
+    // Calculate the scale factor based on the parallax offset
+    val scaleFactor = 1f - 0.2f * kotlin.math.abs(parallaxOffset / screenWidth.value)
+
     // Card composable for the item
     Card(
         modifier = Modifier
             .fillMaxSize()
             .padding(cardPadding)
-            .background(Color.White, shape)
-            .shadow(elevation = shadowElevation, shape = shape)
+            .background(Color.Green, shape)
+            .shadow(shadowElevation, shape = shape)
     ) {
         // Canvas for drawing the image with parallax effect
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(imagePadding)
-                .clip(shape)
+                .clip(RectangleShape)
         ) {
+            // Calculate the scale to ensure the image fits within the view boundaries
+            val scaleX = size.width / drawSize.width.toFloat()
+            val scaleY = size.height / drawSize.height.toFloat()
+            val scale = maxOf(scaleX, scaleY)
+
             // Translate the canvas for parallax effect
             translate(left = parallaxOffset * density) {
                 // Draw the image
@@ -132,28 +172,30 @@ fun ParallaxCarouselItem(
     }
 }
 
-// Function to calculate draw size for the image
-private fun ImageBitmap.calculateDrawSize(density: Float, screenWidth: Dp, pagerHeight: Dp): IntSize {
-    val originalImageWidth = width / density
-    val originalImageHeight = height / density
-
-    val frameAspectRatio = screenWidth / pagerHeight
-    val imageAspectRatio = originalImageWidth / originalImageHeight
-
-    val drawWidth = xOffset + if (frameAspectRatio > imageAspectRatio) {
-        screenWidth.value
-    } else {
-        pagerHeight.value * imageAspectRatio
-    }
-
-    val drawHeight = if (frameAspectRatio > imageAspectRatio) {
-        screenWidth.value / imageAspectRatio
-    } else {
-        pagerHeight.value
-    }
-
-    return IntSize(drawWidth.toIntPx(density), drawHeight.toIntPx(density))
+@SuppressLint("ModifierFactoryExtensionFunction")
+@Suppress("UNUSED_PARAMETER")
+private fun Modifier.Companion.fillMaxSize(fraction: Dp) {
+    // This function is unnecessary and should be removed if not used
 }
 
-// Extension function to convert Float to Int in pixels
-private fun Float.toIntPx(density: Float) = (this * density).roundToInt()
+// Function to extract the color from an image using Palette
+fun extractColorFromImage(imageResId: Int, resources: android.content.res.Resources): Int {
+    val bitmap = BitmapFactory.decodeResource(resources, imageResId)
+    val palette = Palette.from(bitmap).generate()
+    return palette.getDominantColor(Color.Black.toArgb())
+}
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            val resources = resources
+            val color = extractColorFromImage(R.drawable.p1, resources)
+            val backgroundColor = Color(color)
+
+            // Use the extracted color as needed, for example:
+            Box(modifier = Modifier.fillMaxSize().background(backgroundColor)) {
+                ParallaxCarousel()
+            }
+        }
+    }
+}
