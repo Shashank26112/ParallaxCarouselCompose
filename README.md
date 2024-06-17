@@ -1,6 +1,6 @@
 # Jetpack Compose Parallax Carousel Example
  
-<img src="/screenshots/compose.gif" width="300" />
+(https://www.linkedin.com/posts/shashankkatti20_jiocinema-activity-7201811121320697857-exTe?utm_source=share&utm_medium=member_desktop)
 
 This is an example project that demonstrates how to create a parallax carousel with Jetpack Compose.
 
